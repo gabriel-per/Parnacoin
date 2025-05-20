@@ -1,64 +1,42 @@
-import base64
 import uuid
 import base64
 import json
-import hashlib
 import cryptography.exceptions
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
-from datetime import datetime
 import paho.mqtt.client as mqtt
 from dateutil.parser import parse
-from re import finditer
-from zoneinfo import ZoneInfo
+from classes import Minerador, SHA256
 
 # O padrão para armazenamento do blockchain Parnacoin é:
-# {
-#     "0": {
-#         "transacoes": {
-#             {"id": , "beneficiario": , "chave_publica": , "quantidade": , "assinatura": , "data_hora": }
-#         },
-#         "hash": "SHA256"
+# [
+#     {
+#         "id": 0,
+#         "nonce": número de 0 a 4,294,967,295 (32 bits),
+#         "raiz_merkle": "Hash SHA256 das transações",
+#         "hash_anterior": "Hash SHA256 do bloco anterior",
+#         "data_hora": "objeto datetime",
+#         "alvo_dificuldade": número da quantidade de 0s iniciais
+#         "transacoes": [
+#             {"id": , "beneficiario": , "chave_publica": , "quantidade": , "assinatura": , "data_hora": , "taxa": }
+#         ]
 #     },
-#     "1": {
-#         "transacoes": {
+#     {
+#         "id": 1,
+#         (...)
+#         "transacoes": [
 #             "transacoes aqui..."
-#         },
-#         "hash": "SHA256"
+#         ]
 #     },
-# }
-# Onde o número do bloco é o seu ID, "transacoes" é um array de objetos JSON, e o hash é o "número dourado" em SHA256.
+# ]
+# Onde o blockchain é uma lista de objetos JSON, "id" é o id do bloco (sequencial, igual ao seu índice na lista), "transacoes" é uma lista de objetos JSON, e o nonce é o "número dourado" em SHA256.
 
 
 transacoes_recebidas = []
+alvo_dificuldade = 10
 
 
-class Bloco:
-
-    def __init__(self,indice,hash_anterior,transacoes,data_hora=None,nonce=0):
-        self.indice = indice
-        self.data_hora = data_hora or datetime.utcnow().isoformat()
-        self.hash_anterior = hash_anterior
-        self.transacoes = transacoes
-        self.nonce = nonce
-        self.hash = None
-
-    def calcular_hash(self):
-        # Gera uma string JSON com os dados do bloco ordenados, codifica e calcula o hash SHA-256
-        bloco_str = json.dumps({
-            "indice": self.indice,
-            "data_hora": self.data_hora,
-            "hash_anterior": self.hash_anterior,
-            "transacoes": self.transacoes,
-            "nonce": self.nonce
-        }, sort_keys=True).encode()
-        return hashlib.sha256(bloco_str).hexdigest()
-
-
-def checar_saldo(chave_publica: str, quantidade: float):
+def checar_saldo(chave_publica: str, quantidade: float, taxa: float):
     """
     Checa se o pagador tem saldo suficiente para fazer uma transferência observando todo o seu histórico na blockchain.
 
@@ -66,11 +44,13 @@ def checar_saldo(chave_publica: str, quantidade: float):
     """
     with open("blockchain.txt", "r") as arquivo:
         copia_blockchain = arquivo.read()
-        # Procura todos os índices das ocorrências do ID do pagador no blockchain
+        # Procura todos os índices das ocorrências do ID do pagador (chave pública) na blockchain
         copia_blockchain = json.loads(copia_blockchain)
 
         # Soma todas as transações
         soma = 0
+        if (taxa > 0):
+            soma += taxa
         for bloco in copia_blockchain:
             for transacao in bloco["transacoes"]:
                 if transacao["chave_publica"] == chave_publica:
@@ -87,7 +67,23 @@ def checar_bloco(bloco: str):
 
     :param str bloco: Bloco a ser validado
     """
+    # A implementar:
+    # - Validar se o SHA256 do bloco realmente atende à dificuldade
+    # - Checar a validade do hash anterior (hash do header)
+    # - Checar a validade da raiz Merkle (hash das transações)
+    # - Checar a validade do ID
+    # - Checar se data_hora existe e é maior do que o bloco anterior
+    # - Checar se alvo_dificuldade é consistente com as regras da rede
+    # - Checar se transacoes contém transações corretamente formatadas
+    # - 
 
+    bloco = json.loads(bloco)
+
+    try:
+        if (not (isinstance(bloco["id"], int) or isinstance())):
+            pass
+    except:
+        pass
 
 
 def checar_transacao(transacao: dict):
@@ -106,8 +102,8 @@ def checar_transacao(transacao: dict):
         # Checa a validade do objeto datetime
         parse(transacao["data_hora"], fuzzy=False)
 
-        # Checa se a quantidade a ser transferida é válida
-        if (transacao["quantidade"] <= 0 or not checar_saldo(transacao["pagador"])):
+        # Checa se a quantidade e a taxa a ser transferida é válida
+        if (transacao["quantidade"] <= 0 or not isinstance(transacao["taxa"], float) or not checar_saldo(transacao["pagador"], transacao["quantidade"], transacao["taxa"])):
             return ValueError
         
         # Carrega a chave pública
@@ -132,7 +128,7 @@ def checar_transacao(transacao: dict):
             )
 
             # Verifica se o pagador tem saldo suficiente para a transação
-            if (not checar_saldo(transacao["chave_publica"], transacao["quantidade"])):
+            if (not checar_saldo(transacao["chave_publica"], transacao["quantidade"], transacao["taxa"])):
                 return ValueError
             
             print("Transação válida recebida!")
@@ -151,47 +147,35 @@ def checar_transacao(transacao: dict):
         return False
     
 
-def minerar_bloco(cadeia_blocos, mempool, usuario_minerador):
-    # Ordena transações da mempool por taxa
-    transacoes_ordenadas = sorted(mempool,key=lambda tx: tx.get('taxa',0),reverse=True)
+def minerar_bloco(hash_anterior, mempool):
+
+    # Ordena transações da mempool por taxa (o minerador prioriza as transações mais lucrativas)
+    transacoes_ordenadas = sorted(mempool, key=lambda transacao: transacao.get('taxa', 0),reverse=True)
     # Limita em 100 transações por bloco
     transacoes_selecionadas = transacoes_ordenadas[:100]
-
-    id_minerador = str(usuario_minerador.id_carteira)
-    chave_publica_minerador = base64.b64encode(usuario_minerador.chave_publica).decode('utf-8')
+        
+    soma_taxas = 0
+    for transacao in mempool:
+        soma_taxas += transacao["taxa"]
 
     # Transação que premia o minerador
-    transacao_recompensa = {
-        "id": str(uuid.uuid4()),
-        "pagador": None,
-        "beneficiario": id_minerador,
-        "quantidade": 10.0, # Quantidade inicial que o minerador pode minerar
-        "taxa": 0.0,
-        "chave_publica": chave_publica_minerador,
-        "assinatura": "",
-        "data_hora": datetime.now(ZoneInfo("America/Sao_Paulo")).isoformat()
-    }
+    transacao_recompensa = Minerador.criar_transacao_recompensa(soma_taxas)
 
     # Bloco conterá a recompensa mais as transações selecionadas
     transacoes_do_bloco = [transacao_recompensa]+transacoes_selecionadas
-    bloco_anterior = cadeia_blocos[-1]
 
-    novo_bloco = Bloco(
-        indice=bloco_anterior.indice + 1,
-        hash_anterior=bloco_anterior.hash,
-        transacoes=transacoes_do_bloco
-    )
+    global alvo_dificuldade
+    novo_bloco = Minerador.gerar_bloco(transacoes_do_bloco, hash_anterior, alvo_dificuldade)
 
-    # Quantidade de zeros iniciais no hash
-    dificuldade = "0"*10
-
-    # Processo de prova de trabalho
+    # Processo de Proof of Work
     while True:
-        tentativa_hash = novo_bloco.calcular_hash()
-        if(tentativa_hash.startswith(dificuldade)):
-            novo_bloco.hash = tentativa_hash
+        # Todo bloco precisa ser "hashado" duas vezes. Não é estritamente necessário,
+        # mas protege a criptomoeda de ataques de extensão de hash. "Hashar" duas vezes
+        # impossibilita esse tipo de ataque.
+        tentativa_hash = SHA256(SHA256(novo_bloco))
+        if (tentativa_hash.startswith(alvo_dificuldade)):
             return novo_bloco
-        novo_bloco.nonce+=1
+        novo_bloco["nonce"] += 1
 
 
 ######## v Implementação do MQTT v ########
