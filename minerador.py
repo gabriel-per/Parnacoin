@@ -1,4 +1,3 @@
-import uuid
 import base64
 import json
 import cryptography.exceptions
@@ -37,11 +36,7 @@ alvo_dificuldade = 10
 
 
 def checar_saldo(chave_publica: str, quantidade: float, taxa: float):
-    """
-    Checa se o pagador tem saldo suficiente para fazer uma transferência observando todo o seu histórico na blockchain.
-
-    :param UUID pagadorUUID: UUID do pagador
-    """
+    """Checa se o pagador tem saldo suficiente para fazer uma transferência observando todo o seu histórico na blockchain."""
     with open("blockchain.txt", "r") as arquivo:
         copia_blockchain = arquivo.read()
         # Procura todos os índices das ocorrências do ID do pagador (chave pública) na blockchain
@@ -62,11 +57,7 @@ def checar_saldo(chave_publica: str, quantidade: float, taxa: float):
     
 
 def checar_bloco(bloco: str):
-    """
-    Verifica a validade do bloco.
-
-    :param str bloco: Bloco a ser validado
-    """
+    """Verifica a validade do bloco."""
     # A implementar:
     # - Validar se o SHA256 do bloco realmente atende à dificuldade
     # - Checar a validade do hash anterior (hash do header)
@@ -87,17 +78,10 @@ def checar_bloco(bloco: str):
 
 
 def checar_transacao(transacao: dict):
-    """
-    Verifica a validade da transação.
-
-    :param dict transacao: Transação a ser validada
-    """
+    """Verifica a validade da transação."""
     try:
-        # Checa a validade dos UUIDs
-        for i in ["id", "beneficiario"]:
-            teste_uuid = uuid.UUID(transacao[i])
-            if (teste_uuid.version != 4):
-                return ValueError
+        # Verifica se a chave pública do beneficiário é válida
+        public_key = serialization.load_pem_public_key(base64.b64decode(transacao["beneficiario"]))
             
         # Checa a validade do objeto datetime
         parse(transacao["data_hora"], fuzzy=False)
@@ -106,7 +90,7 @@ def checar_transacao(transacao: dict):
         if (transacao["quantidade"] <= 0 or not isinstance(transacao["taxa"], float) or not checar_saldo(transacao["pagador"], transacao["quantidade"], transacao["taxa"])):
             return ValueError
         
-        # Carrega a chave pública
+        # Carrega a chave pública do pagador (e verifica sua validade)
         public_key = serialization.load_pem_public_key(base64.b64decode(transacao["chave_publica"]))
         
         # Prepara a transação para verificação
@@ -148,6 +132,7 @@ def checar_transacao(transacao: dict):
     
 
 def minerar_bloco(hash_anterior, mempool):
+    """Minera um novo bloco"""
 
     # Ordena transações da mempool por taxa (o minerador prioriza as transações mais lucrativas)
     transacoes_ordenadas = sorted(mempool, key=lambda transacao: transacao.get('taxa', 0),reverse=True)
@@ -199,8 +184,7 @@ def mensagem_recebida(client, userdata, msg):
                 print(msg.topic+" "+str(msg.payload))
                 
         case "rede-blocos":
-            
-            if (checar_bloco(bloco)):
+            if (checar_bloco(json.loads(msg.payload.decode("utf-8")))):
                 pass
 
 
