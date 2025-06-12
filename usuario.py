@@ -1,9 +1,9 @@
 import json
 import paho.mqtt.client as mqtt
-from classes import Usuario
+from classes import Usuario, SHA256
 
 def ao_conectar(client, userdata, flags, reason_code, properties):
-    print("Conectado!")
+    print("Conectado à rede Parnacoin!")
 
 mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 mqttc.on_connect = ao_conectar
@@ -12,9 +12,10 @@ mqttc.on_connect = ao_conectar
 mqttc.connect("127.0.0.1", 1883, 60)
 mqttc.subscribe("rede-parnacoin", 1)
 
+beneficiario = SHA256(SHA256())
 
 a = Usuario()
-transacao = a.assinar()
+transacao = a.criar_transacao("")
 print(transacao)
 mqttc.publish("rede-parnacoin", json.dumps(transacao))
 print(json.dumps(transacao, indent=2))
