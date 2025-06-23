@@ -1,0 +1,7 @@
+cryptography
+padding
+paho-mqtt
+hashlib
+zoneinfo
+rsa
+dateutil
