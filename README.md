@@ -1,4 +1,4 @@
-![Parnacoin: uma criptomoeda em Python 100% paranmirinense](https://github.com/gabriel-per/Parnacoin/blob/main/repo-cover.png)
+![Parnacoin: uma criptomoeda em Python 100% parnamirinense](https://github.com/gabriel-per/Parnacoin/blob/main/repo-cover.png)
 
 # Parnacoin
 
