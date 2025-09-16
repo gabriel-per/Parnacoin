@@ -140,8 +140,10 @@ def carregar_ou_gerar_chaves(dados_path):
 
     return pem_priv_padrao, pem_pub_padrao
 
+base_dir = os.path.dirname(os.path.abspath(__file__))
+
 class Base:
-    def __init__(self, blockchain_path='C:\\Users\\Exoneutron\\Documents\\Parnacoin\\Parnacoin\\blockchain.txt', dados_path='C:\\Users\\Exoneutron\\Documents\\Parnacoin\\Parnacoin\\dados.txt'):
+    def __init__(self, blockchain_path=os.path.join(base_dir, "blockchain.txt"), dados_path=os.path.join(base_dir, "dados.txt")):
         ensure_blockchain_file(blockchain_path)
         if not os.path.exists(dados_path):
             with open(dados_path, 'w', encoding='utf-8') as f:
