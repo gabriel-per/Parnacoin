@@ -11,11 +11,13 @@ import os
 import time
 from typing import List
 
+idMinerador = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUFtdkdiZERmanRPVXNFaGRTaDcrNAoyd29zamdxY1ByNDNDUU9CT0VaQ3U1aUxqZzU0R0ExQUFMMWtiR1g1L0tBK3Nyam15WUMydTUzSFJ6VG11eXI0CllvaHJMTXN2b0tlMDNwT0lSTVhYNU9Xb3o4cE9GeTNZd0s3RTlxS0FENGthbWNmeWVKaGxwK3l1aEtXZEJTZVEKeGZUdUtPZjJETy9Zb0t3NkJPQTFmRTgwckdTT3l5UWZvQzN1TGxhVjdRU0djN3VPZ2dOUENvNkRrQnFzbUQ5TwptOHJZYUFEd2piWEtqam1ZOWxqbllEZ3lzdFJDcXZXU3BURjJFOTloTUVjRFFRMmhkZElZVytFYW1hREMwbjNhCllGaTZMd0lob0xGT0ZESjZERnNoK0N5NGpwNUF1Q2FkNUJVajFvbjV4d0ZGM1JOekR6NUZqU0k5Ui9pU0JSd3kKaFFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=="
+
 BLOCKCHAIN_PATH = "blockchain.txt"
 ensure_blockchain_file(BLOCKCHAIN_PATH)
 
 transacoes_recebidas: List[dict] = []
-alvo_dificuldade = 10  # número de zeros binários exigidos (ex.: 10 bits leading zero)
+alvo_dificuldade = 24  # número de zeros binários exigidos no início da string hash do bloco
 
 def carregar_blockchain():
     with open(BLOCKCHAIN_PATH, "r", encoding='utf-8') as f:
@@ -49,6 +51,7 @@ def checar_saldo(chave_publica_b64: str, quantidade: float, taxa: float):
                     soma += float(transacao.get("quantidade", 0))
                 if transacao["chave_publica"] == chave_publica_b64 and transacao.get("nonce_extra") is None:
                     # considerar gasto (pagador) - na prática nem todas txs terão campo de pagador separado; aqui assumimos
+                    # A transação de recompensa do minerador é um caso especial (nonce_extra presente) e não deve ser debitada
                     soma -= float(transacao.get("quantidade", 0))
         print(soma)
 

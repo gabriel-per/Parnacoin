@@ -26,6 +26,7 @@ print(json.dumps(transacao, indent=2, ensure_ascii=False))
 
 mqttc.publish("rede-parnacoin", json.dumps(transacao), qos=1)
 time.sleep(0.5)
+print("starting MQTT loop")
 mqttc.loop_start()
 
 try:
